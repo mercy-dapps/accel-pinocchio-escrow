@@ -53,6 +53,7 @@ mod tests {
     fn helper(
         svm: &mut LiteSVM,
         payer: &Keypair,
+        taker: &Keypair,
     ) -> (
         Pubkey,
         Pubkey,
@@ -76,9 +77,9 @@ mod tests {
             .unwrap();
         println!("Mint A: {}", mint_a);
 
-        let mint_b = CreateMint::new(svm, payer)
+        let mint_b = CreateMint::new(svm, taker)
             .decimals(6)
-            .authority(&payer.pubkey())
+            .authority(&taker.pubkey())
             .send()
             .unwrap();
         println!("Mint B: {}", mint_b);
@@ -90,7 +91,7 @@ mod tests {
             .unwrap();
         println!("Maker ATA A: {}\n", maker_ata_a);
 
-        let maker_ata_b = CreateAssociatedTokenAccount::new(svm, payer, &mint_b)
+        let maker_ata_b = CreateAssociatedTokenAccount::new(svm, taker, &mint_b)
             .owner(&payer.pubkey())
             .send()
             .unwrap();
@@ -182,18 +183,8 @@ mod tests {
         let (mut svm, payer, taker) = setup();
         let program_id = program_id();
 
-        let (
-            mint_a, 
-            mint_b, 
-            _, 
-            maker_ata_b, 
-            escrow, 
-            vault, 
-            _, 
-            token_program, 
-            system_program, 
-            bump) =
-            helper(&mut svm, &payer);
+        let (mint_a, mint_b, _, maker_ata_b, escrow, vault, _, token_program, _, bump) =
+            helper(&mut svm, &payer, &taker);
 
         let take_data = [
             vec![1u8], // Discriminator for "Take" instruction
@@ -201,7 +192,7 @@ mod tests {
         ]
         .concat();
 
-    // Create the maker's associated token account for Mint A
+        // Create the maker's associated token account for Mint A
         let taker_ata_a = CreateAssociatedTokenAccount::new(&mut svm, &taker, &mint_a)
             .owner(&taker.pubkey())
             .send()
@@ -214,7 +205,7 @@ mod tests {
             .unwrap();
         println!("Taker ATA B: {}\n", taker_ata_b);
 
-         MintTo::new(&mut svm, &taker, &mint_b, &taker_ata_b, 1000000000)
+        MintTo::new(&mut svm, &taker, &mint_b, &taker_ata_b, 1000000000)
             .send()
             .unwrap();
 
@@ -227,10 +218,10 @@ mod tests {
                 AccountMeta::new(maker, false),
                 AccountMeta::new_readonly(mint_a, false),
                 AccountMeta::new_readonly(mint_b, false),
+                AccountMeta::new(escrow, false),
                 AccountMeta::new(taker_ata_a, false),
                 AccountMeta::new(taker_ata_b, false),
                 AccountMeta::new(maker_ata_b, false),
-                AccountMeta::new(escrow, false),
                 AccountMeta::new(vault, false),
                 AccountMeta::new_readonly(token_program, false),
             ],
@@ -250,14 +241,13 @@ mod tests {
         println!("CUs Consumed: {}", tx.compute_units_consumed);
     }
 
-
     #[test]
     pub fn test_cancel_instruction() {
-        let (mut svm, payer, _) = setup();
+        let (mut svm, payer, taker) = setup();
         let program_id = program_id();
 
         let (mint_a, _, maker_ata, _, escrow, vault, _, token_program, system_program, bump) =
-            helper(&mut svm, &payer);
+            helper(&mut svm, &payer, &taker);
 
         let cancel_data = [
             vec![2u8], // Discriminator for "Cancel" instruction

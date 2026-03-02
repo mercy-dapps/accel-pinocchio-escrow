@@ -8,7 +8,7 @@ use pinocchio_pubkey::derive_address;
 use crate::state::Escrow;
 
 pub fn process_take_instruction(accounts: &[AccountView], _data: &[u8]) -> ProgramResult {
-    let [taker, maker, mint_a, mint_b, escrow_account, taker_ata_a, taker_ata_b, maker_ata_b, escrow_ata, _system_program, _token_program, _associated_token_program @ ..] =
+    let [taker, maker, mint_a, mint_b, escrow_account, taker_ata_a, taker_ata_b, maker_ata_b, escrow_ata, _token_program, _associated_token_program @ ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -94,7 +94,10 @@ pub fn process_take_instruction(accounts: &[AccountView], _data: &[u8]) -> Progr
 
     let (amount_to_receive, amount_to_give) = {
         let escrow_account_state = Escrow::from_account_info(&escrow_account)?;
-        (escrow_account_state.amount_to_receive(), escrow_account_state.amount_to_give())
+        (
+            escrow_account_state.amount_to_receive(),
+            escrow_account_state.amount_to_give(),
+        )
     };
 
     let bump = [bump.to_le()];
@@ -112,7 +115,7 @@ pub fn process_take_instruction(accounts: &[AccountView], _data: &[u8]) -> Progr
         amount: amount_to_give,
     }
     .invoke_signed(&[seeds.clone()])?;
-    
+
     pinocchio_token::instructions::Transfer {
         from: taker_ata_b,
         to: maker_ata_b,
