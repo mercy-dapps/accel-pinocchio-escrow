@@ -63,6 +63,7 @@ mod tests {
         Pubkey,
         Pubkey,
         Pubkey,
+        u8,
     ) {
         let program_id = program_id();
 
@@ -172,30 +173,110 @@ mod tests {
             associated_token_program,
             token_program,
             system_program,
+            bump,
         )
     }
+
+    #[test]
+    pub fn test_take_instruction() {
+        let (mut svm, payer, taker) = setup();
+        let program_id = program_id();
+
+        let (
+            mint_a, 
+            mint_b, 
+            _, 
+            maker_ata_b, 
+            escrow, 
+            vault, 
+            _, 
+            token_program, 
+            system_program, 
+            bump) =
+            helper(&mut svm, &payer);
+
+        let take_data = [
+            vec![1u8], // Discriminator for "Take" instruction
+            bump.to_le_bytes().to_vec(),
+        ]
+        .concat();
+
+    // Create the maker's associated token account for Mint A
+        let taker_ata_a = CreateAssociatedTokenAccount::new(&mut svm, &taker, &mint_a)
+            .owner(&taker.pubkey())
+            .send()
+            .unwrap();
+        println!("Taker ATA A: {}\n", taker_ata_a);
+
+        let taker_ata_b = CreateAssociatedTokenAccount::new(&mut svm, &taker, &mint_b)
+            .owner(&taker.pubkey())
+            .send()
+            .unwrap();
+        println!("Taker ATA B: {}\n", taker_ata_b);
+
+         MintTo::new(&mut svm, &taker, &mint_b, &taker_ata_b, 1000000000)
+            .send()
+            .unwrap();
+
+        let maker = payer.pubkey();
+
+        let take_ix = Instruction {
+            program_id: program_id,
+            accounts: vec![
+                AccountMeta::new(taker.pubkey(), true),
+                AccountMeta::new(maker, false),
+                AccountMeta::new_readonly(mint_a, false),
+                AccountMeta::new_readonly(mint_b, false),
+                AccountMeta::new(taker_ata_a, false),
+                AccountMeta::new(taker_ata_b, false),
+                AccountMeta::new(maker_ata_b, false),
+                AccountMeta::new(escrow, false),
+                AccountMeta::new(vault, false),
+                AccountMeta::new_readonly(token_program, false),
+            ],
+            data: take_data,
+        };
+
+        let message = Message::new(&[take_ix], Some(&taker.pubkey()));
+        let recent_blockhash = svm.latest_blockhash();
+
+        let transaction = Transaction::new(&[taker], message, recent_blockhash);
+
+        // Send the transaction and capture the result
+        let tx = svm.send_transaction(transaction).unwrap();
+
+        // Log transaction details
+        println!("\n\nTake transaction successful");
+        println!("CUs Consumed: {}", tx.compute_units_consumed);
+    }
+
 
     #[test]
     pub fn test_cancel_instruction() {
         let (mut svm, payer, _) = setup();
         let program_id = program_id();
 
-        let (mint_a, _, maker_ata, _, escrow, vault, _, token_program, system_program) =
+        let (mint_a, _, maker_ata, _, escrow, vault, _, token_program, system_program, bump) =
             helper(&mut svm, &payer);
 
+        let cancel_data = [
+            vec![2u8], // Discriminator for "Cancel" instruction
+            bump.to_le_bytes().to_vec(),
+        ]
+        .concat();
 
         let cancel_ix = Instruction {
             program_id: program_id,
             accounts: vec![
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new_readonly(mint_a, false),
-                AccountMeta::new(maker_ata, false),
                 AccountMeta::new(escrow, false),
+                AccountMeta::new(maker_ata, false),
                 AccountMeta::new(vault, false),
                 AccountMeta::new_readonly(token_program, false),
                 AccountMeta::new_readonly(system_program, false),
             ],
-            data: [].to_vec(),
+            data: cancel_data,
         };
 
         let message = Message::new(&[cancel_ix], Some(&payer.pubkey()));
@@ -207,7 +288,7 @@ mod tests {
         let tx = svm.send_transaction(transaction).unwrap();
 
         // Log transaction details
-        println!("\n\nCancel transaction sucessfull");
+        println!("\n\nCancel transaction successful");
         println!("CUs Consumed: {}", tx.compute_units_consumed);
     }
 }
