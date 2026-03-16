@@ -32,9 +32,8 @@ mod tests {
 
         // Load program SO file
         println!("The path is!! {}", env!("CARGO_MANIFEST_DIR"));
-        let so_path = PathBuf::from(
-            "/Users/mac/Desktop/cool/turbin3/accelerated cohort 26/accel-pinocchio-escrow/target/deploy/escrow.so",
-        );
+                let so_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/deploy/escrow.so");
+
 
         let program_data = std::fs::read(so_path).expect("Failed to read program SO file");
 
